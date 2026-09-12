@@ -66,13 +66,6 @@ def strip_ansi(text):
     return _ANSI_RE.sub("", text)
 
 
-def _set_nice(level):
-    try:
-        os.nice(level)
-    except OSError:
-        pass
-
-
 class MinerState:
     def __init__(self):
         self.hashrate = 0.0
@@ -86,8 +79,6 @@ class MinerState:
         self.connected = False
         self.last_diff_share = None
         self.blocks_found = 0
-        self.nice = None
-        self.nice_error = ""
         self.samples = []
         self.start_time = time.time()
         self.up = 0
@@ -199,64 +190,62 @@ class MinerProcess:
         self.state = state
         self.proc = None
 
-    def start(self):
+    def start(self, threads=None):
+        if threads is None:
+            threads = effective_threads(self.config)
         args = [
             BINARY,
             "-a", "sha256d",
             "-o", self.config.get("pool"),
             "-u", self.config.get("worker_username") or self.config.get("wallet_address"),
-            "-t", str(self.config.get("threads")),
+            "-t", str(threads),
         ]
         print("[miner] starting:", " ".join(args))
-        kwargs = {}
-        if self.config.get("quiet_mode"):
-            level = int(self.config.get("quiet_nice") or 0)
-            if level > 0:
-                kwargs["preexec_fn"] = lambda: _set_nice(level)
-                print(f"[miner] quiet mode: running at nice level {level}")
-        self.proc = subprocess.Popen(
+        proc = subprocess.Popen(
             args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            **kwargs,
         )
-        if self.config.get("quiet_mode"):
-            self.set_nice(int(self.config.get("quiet_nice") or 0))
+        self.proc = proc
+        self.state.accepted = 0
+        self.state.attempts = 0
+        self.state.rejected = 0
+        self.state.hashrate = 0.0
+        self.state.show_rate = 0.0
+        self.state.samples = []
         self.state.start_time = time.time()
-        self.reader = threading.Thread(target=self._read_loop, daemon=True)
+        self.reader = threading.Thread(target=self._read_loop, args=(proc,), daemon=True)
         self.reader.start()
-        return self.proc
+        return proc
 
-    def set_nice(self, level):
-        if not self.proc or self.proc.poll() is not None:
-            self.state.nice = level
-            self.state.nice_error = ""
-            return True
-        try:
-            os.setpriority(os.PRIO_PROCESS, self.proc.pid, level)
-            self.state.nice = level
-            self.state.nice_error = ""
-            return True
-        except OSError as exc:
-            self.state.nice_error = str(exc)
-            return False
+    def restart(self, level):
+        intended = effective_threads(self.config, level=level)
+        self.save_level(level)
+        self.stop()
+        self.proc = None
+        time.sleep(0.4)
+        return self.start(threads=intended)
 
-    def _read_loop(self):
-        for line in iter(self.proc.stdout.readline, ""):
+    def save_level(self, level):
+        self.config.set("cooling_level", level)
+
+    def _read_loop(self, proc):
+        for line in iter(proc.stdout.readline, ""):
             for part in line.split("\r"):
                 parse_chunk(part.strip(), self.state)
 
     def stop(self):
-        if not self.proc:
+        proc = self.proc
+        if not proc:
             return
         try:
-            self.proc.send_signal(signal.SIGINT)
-            self.proc.wait(timeout=10)
+            proc.send_signal(signal.SIGINT)
+            proc.wait(timeout=10)
         except Exception:
             try:
-                self.proc.kill()
+                proc.kill()
             except Exception:
                 pass
 
@@ -266,3 +255,12 @@ class MinerProcess:
         except KeyboardInterrupt:
             self.stop()
             return None
+
+
+def effective_threads(config, level=None):
+    base = int(config.get("threads") or (os.cpu_count() or 1))
+    if level is None:
+        level = int(config.get("cooling_level") or 0)
+    if level <= 0 or level > 10:
+        return base
+    return max(1, int(round(base * (11 - level) / 10.0)))

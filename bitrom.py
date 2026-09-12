@@ -29,7 +29,10 @@ def main():
     parser.add_argument("-p", "--pool", default=None, help="solo pool stratum url")
     parser.add_argument("-u", "--worker", default=None, help="worker name (appended to address)")
     parser.add_argument("-t", "--threads", type=int, default=None, help="number of miner threads")
-    parser.add_argument("--quiet", action="store_true", help="run miner at lower priority (nice)")
+    parser.add_argument("--quiet", action="store_true",
+                        help="start in max cooling mode (level 10, fewest threads)")
+    parser.add_argument("--level", type=int, default=None,
+                        help="cooling level 1-10 (default 0 = full speed)")
     parser.add_argument("--rebuild", action="store_true", help="force rebuild cpuminer")
     parser.add_argument("--no-network", action="store_true", help="skip network stats fetching")
     parser.add_argument("--version", action="store_true", help="show version and exit")
@@ -45,7 +48,9 @@ def main():
         if value is not None:
             cfg.set(key, value)
     if args.quiet:
-        cfg.set("quiet_mode", True)
+        cfg.set("cooling_level", 10)
+    if args.level is not None:
+        cfg.set("cooling_level", min(10, max(0, args.level)))
 
     if not cfg.get("wallet_address"):
         config_mod.prompt_first_run(cfg)

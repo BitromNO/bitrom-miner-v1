@@ -20,6 +20,7 @@ DEFAULTS = {
     "show_network": True,
     "quiet_mode": False,
     "quiet_nice": 10,
+    "cooling_level": 0,
 }
 
 

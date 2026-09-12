@@ -2,7 +2,7 @@ import curses
 import time
 
 from . import config as config_mod
-from .miner import human_rate
+from .miner import human_rate, effective_threads
 
 _B = ("██████", "██  ██", "██  ██", "██████", "██  ██", "██  ██", "██████")
 _I = ("██████", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "██████")
@@ -79,6 +79,7 @@ class Dashboard:
         self.proc = proc
         self.panel = 0
         self.last_cycle = 0.0
+        self.notice = ("", 0.0)
         self.colors = {}
 
     def _setup_colors(self):
@@ -123,7 +124,7 @@ class Dashboard:
             if key == ord("m"):
                 self._menu(stdscr)
             if key == ord("n"):
-                self._toggle_quiet(stdscr)
+                self._toggle_quick(stdscr)
 
             now = time.time()
             if now - self.last_cycle >= self.config.get("update_interval") * 4:
@@ -182,7 +183,10 @@ class Dashboard:
         _safe(win, 4, x_right, f"uptime  {_fmt_duration(state.up)}", self.colors["normal"])
         _safe(win, 5, x_right, f"pool    {self.config.get('pool').split('//')[-1]}",
               self.colors["normal"])
-        _safe(win, 6, x_right, f"mode    {self._mode_label()}", self.colors["normal"])
+        _safe(win, 6, x_right, "mode    ",
+              self.colors["dim"])
+        mode_attr = self.colors["warn"] if self._mode_state() > 0 else self.colors["normal"]
+        _safe(win, 6, x_right + 7, self._mode_label(), mode_attr)
 
         _safe(win, 8, 2, "\u2550" * (w - 4), self.colors["dim"])
 
@@ -277,43 +281,42 @@ class Dashboard:
         return [self._clip(line, width) for line in lines]
 
     def _mode_state(self):
-        n = self.state.nice
-        if n is None:
-            n = self.config.get("quiet_nice") if self.config.get("quiet_mode") else 0
-        return n
+        return int(self.config.get("cooling_level") or 0)
 
     def _mode_label(self):
-        n = self._mode_state()
-        if n > 0:
-            return f"quiet (nice {n})"
-        return "normal"
+        level = self._mode_state()
+        if level > 0:
+            threads = effective_threads(self.config)
+            return f"cool L{level} ({threads} thr)"
+        return "full speed"
 
-    def _toggle_quiet(self, stdscr):
+    def _apply_level(self, stdscr, level, quick=False):
+        level = min(10, max(0, level))
         cfg = self.config
-        cur = self._mode_state()
-        new = 0 if cur > 0 else int(cfg.get("quiet_nice") or 0)
-        cfg.set("quiet_mode", new > 0)
+        cfg.set("cooling_level", level)
         config_mod.save(cfg)
+        threads = effective_threads(self.config)
         if self.proc:
-            ok = self.proc.set_nice(new)
-            if not ok and cur > 0 and new == 0:
-                self.state.nice_error = (
-                    "restoring priority needs root; launch with sudo to toggle off live"
-                )
-            elif not ok:
-                self.state.nice_error = (
-                    "could not set nice level: " + self.state.nice_error
-                )
-            else:
-                self.state.nice_error = ""
+            try:
+                self.proc.restart(level)
+                msg = f"COOLING LEVEL {level} - {threads} threads {'(applied)' if not quick else '(restarting...)'}"
+            except Exception:
+                msg = "restart failed - change saved for next launch"
         else:
-            self.state.nice = new
-            self.state.nice_error = ""
+            msg = f"COOLING LEVEL {level} set ({threads} threads - next launch)"
+        if level == 0:
+            msg = "COOLING OFF - full speed (" + str(effective_threads(self.config)) + " threads)"
+        self.notice = (msg, time.time())
         self.last_cycle = time.time()
 
+    def _toggle_quick(self, stdscr):
+        cur = self._mode_state()
+        self._apply_level(stdscr, 0 if cur > 0 else 10, quick=True)
+
     def _menu(self, stdscr):
+        pending = self._mode_state()
         while True:
-            self._render_menu(stdscr)
+            self._render_menu(stdscr, pending)
             stdscr.refresh()
             key = stdscr.getch()
             if key in (ord("q"), 27, ord("m")):
@@ -321,31 +324,44 @@ class Dashboard:
             if key == -1:
                 time.sleep(0.15)
                 continue
-            if key in (ord("1"), ord("n"), ord("N")):
-                self._toggle_quiet(stdscr)
+            if key in (ord("n"), ord("N")):
+                pending = 0 if self._mode_state() == 0 else 10
+                self._apply_level(stdscr, pending)
+                break
+            if ord("1") <= key <= ord("9"):
+                pending = key - ord("0")
+            if key == ord("0"):
+                pending = 10
+            if key in (13, 10, ord(" ")):
+                self._apply_level(stdscr, pending)
             if key == ord("s"):
                 self.panel = (self.panel + 1) % len(PANEL_NAMES)
 
-    def _render_menu(self, stdscr):
+    def _render_menu(self, stdscr, pending=None):
         h, w = stdscr.getmaxyx()
-        mw = min(w - 6, 44)
+        mw = min(w - 6, 46)
         mx = max(2, (w - mw) // 2)
-        top = max(1, (h - 10) // 2)
-        quiet = "ON" if self._mode_state() > 0 else "OFF"
+        top = max(1, (h - 12) // 2)
+        cur = self._mode_state()
+        if pending is None:
+            pending = cur
+        threads = effective_threads(self.config, level=None if pending == cur else pending)
+        base = int(self.config.get("threads") or 1)
+        scale = f"{int(round((11 - pending) * 100 / 10))}" if pending > 0 else "100"
         lines = [
-            ("  BITROM MINER v1 - MENU           ", "title"),
-            ("  " + "\u2550" * (mw - 6) + "                 ", "dim"),
-            (f"  [1]  quiet mode            {quiet}", "bold"),
-            ("       nice level 10 (lower priority, cooler", "normal"),
-            ("       fans, keeps PC responsive)         ", "normal"),
-            ("  " + "\u2500" * (mw - 6) + "                 ", "dim"),
+            ("  BITROM MINER v1 - MENU          ", "title"),
+            ("  " + "\u2550" * (mw - 6) + "                ", "dim"),
+            (f"  COOLING LEVEL:  {'{:>2}'.format(pending)}   (1-10)", "bold"),
+            ("       1  2  3  4  5  6  7  8  9  10", "normal"),
+            ("       full speed                coolest", "dim"),
+            (f"       => {threads} of {base} threads (CPU ~{scale}%)", "normal"),
+            ("   [enter]  apply   [n] off/full   [q] close", "dim"),
+            ("  " + "\u2500" * (mw - 6) + "                ", "dim"),
         ]
-        if self.state.nice_error:
-            lines.append(("  ! " + self.state.nice_error[: mw - 8], "err"))
-        else:
-            lines.append(("  [q] close                [s] screen", "dim"))
         for i, (text, style) in enumerate(lines):
             _safe(stdscr, top + i, mx, text, self.colors[style], width=mw)
+        marker = (mw - 6) * pending // 10
+        _safe(stdscr, top + 2, mx + marker, "^", self.colors["warn"])
 
     def _clip(self, line, width):
         return line if len(line) <= width else line[: max(1, width - 4)] + ".."
@@ -356,10 +372,19 @@ class Dashboard:
         samples = self.state.samples
         if len(samples) >= 2:
             self._draw_spark(win, y, w, samples)
-        _safe(win, h - 1, 2, "q quit  s screen  m menu  n quiet  -- bitrom miner v1",
+        _safe(win, h - 1, 2, "q quit  s screen  m menu  n cooling  -- bitrom miner v1",
               self.colors["dim"], width=w - 4)
-        if self.state.error:
+        level = self._mode_state()
+        if level > 0:
+            _safe(win, h - 2, 2,
+                  f"cooling level {level} active: {effective_threads(self.config)} of {self.config.get('threads')} threads",
+                  self.colors["warn"], width=w - 4)
+        elif self.state.error:
             _safe(win, h - 2, 2, self.state.error[: w - 4], self.colors["err"], width=w - 4)
+        if self.notice and time.time() - self.notice[1] < 4:
+            msg = self.notice[0]
+            _safe(win, h - 3, max(2, (w - len(msg)) // 2), msg, self.colors["warn"],
+                  width=w - 4)
 
     def _draw_spark(self, win, y, w, samples):
         plot_w = max(10, w - 8)
