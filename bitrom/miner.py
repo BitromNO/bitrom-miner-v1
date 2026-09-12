@@ -264,3 +264,47 @@ def effective_threads(config, level=None):
     if level <= 0 or level > 10:
         return base
     return max(1, int(round(base * (11 - level) / 10.0)))
+
+
+def run_headless(state, proc, interval=10):
+    """Run the miner without a terminal dashboard, logging to stdout (journald).
+    Stops cleanly on SIGTERM/SIGINT."""
+    import signal
+
+    level = int(proc.config.get("cooling_level") or 0)
+    threads = effective_threads(proc.config)
+    pool = proc.config.get("pool")
+    wallet = proc.config.get("worker_username") or proc.config.get("wallet_address")
+    wmask = (wallet[:12] + "..." + wallet[-6:]) if len(wallet) > 20 else wallet
+    print(f"\n=== bitrom miner v1 (headless) ===")
+    print(f"pool    {pool}")
+    print(f"wallet  {wmask}")
+    print(f"threads {threads}   cooling level {level if level else 0} "
+          f"({'off' if level == 0 else 'level ' + str(level)})")
+
+    stopped = {"flag": False}
+
+    def _stop(_sig, _frame):
+        stopped["flag"] = True
+
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGINT, _stop)
+
+    print("[miner] mining started; press Ctrl-C or systemctl stop to finish")
+    while not stopped["flag"]:
+        alive = proc.proc and proc.proc.poll() is None
+        if not alive:
+            msg = proc.state.error or "unknown"
+            print(f"[error] miner process died: {msg}", flush=True)
+            break
+        rate = human_rate(state.hashrate)
+        print(f"[miner] {rate:<12} accepted {state.accepted}  submitted {state.attempts}"
+              f"  rejected {state.rejected}  blocks {state.blocks_found}  "
+              f"last_diff {state.last_diff_share or '-'}", flush=True)
+        for _ in range(10):
+            if stopped["flag"]:
+                break
+            time.sleep(max(1.0, interval / 10.0))
+    print("[miner] stopping...", flush=True)
+    proc.stop()
+    print("[miner] stopped cleanly", flush=True)

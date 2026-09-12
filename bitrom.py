@@ -33,6 +33,8 @@ def main():
                         help="start in max cooling mode (level 10, fewest threads)")
     parser.add_argument("--level", type=int, default=None,
                         help="cooling level 1-10 (default 0 = full speed)")
+    parser.add_argument("--headless", action="store_true",
+                        help="run without dashboard (logs to stdout, for systemd)")
     parser.add_argument("--rebuild", action="store_true", help="force rebuild cpuminer")
     parser.add_argument("--no-network", action="store_true", help="skip network stats fetching")
     parser.add_argument("--version", action="store_true", help="show version and exit")
@@ -53,6 +55,11 @@ def main():
         cfg.set("cooling_level", min(10, max(0, args.level)))
 
     if not cfg.get("wallet_address"):
+        if args.headless:
+            print("[error] no wallet configured yet.", file=sys.stderr)
+            print("  Run 'python3 bitrom.py' once interactively to set it up, "
+                  "then start the service.", file=sys.stderr)
+            sys.exit(1)
         config_mod.prompt_first_run(cfg)
 
     os.system("clear")
@@ -63,7 +70,7 @@ def main():
 
     state = miner.MinerState()
     proc = miner.MinerProcess(cfg, state)
-    if args.no_network:
+    if args.no_network or args.headless:
         net = network.Network(interval=0)
         net.ok = False
         net.difficulty = None
@@ -77,7 +84,10 @@ def main():
         print("[error] could not launch miner binary:", binary)
         sys.exit(1)
 
-    run(state, net, cfg, proc)
+    if args.headless:
+        miner.run_headless(state, proc)
+    else:
+        run(state, net, cfg, proc)
 
     print("\n[stopping] shutting down miner...")
     proc.stop()

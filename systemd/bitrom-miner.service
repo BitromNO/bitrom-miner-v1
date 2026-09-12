@@ -1,0 +1,21 @@
+[Unit]
+Description=Bitrom Miner v1 - solo CPU Bitcoin miner
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=bitrom
+Group=bitrom
+Environment=HOME=/home/bitrom
+WorkingDirectory=/home/bitrom/bitrom-miner-v1
+ExecStart=/usr/bin/python3 /home/bitrom/bitrom-miner-v1/bitrom.py --headless
+Restart=always
+RestartSec=10
+# stop cleanly: SIGTERM -> headless loop exits 0
+SuccessExitStatus=0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
