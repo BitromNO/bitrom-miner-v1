@@ -72,7 +72,7 @@ def main():
         print("[error] could not launch miner binary:", binary)
         sys.exit(1)
 
-    run(state, net, cfg)
+    run(state, net, cfg, proc)
 
     print("\n[stopping] shutting down miner...")
     proc.stop()

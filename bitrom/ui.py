@@ -1,18 +1,19 @@
 import curses
 import time
 
+from . import config as config_mod
 from .miner import human_rate
 
-LOGO = [
-    "\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588",
-    "\u2588\u2588            \u2588\u2588",
-    "\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588",
-    "\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588",
-    "\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588",
-    "\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588",
-    "\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588",
-    "\u2588\u2588            \u2588\u2588",
-    "\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588",
+_B = ("██████", "██  ██", "██  ██", "██████", "██  ██", "██  ██", "██████")
+_I = ("██████", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "██████")
+_T = ("██████", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "  ██  ", "  ██  ")
+_R = ("██████", "██  ██", "██  ██", "██████", "██ ██ ", "██ ██ ", "██  ██")
+_O = ("██████", "██  ██", "██  ██", "██  ██", "██  ██", "██  ██", "██████")
+_M = ("██  ██", "██████", "██  ██", "██  ██", "██  ██", "██  ██", "██  ██")
+
+BITROM_LOGO = [
+    "".join(word[i] + ("  " if j < 5 else "") for j, word in enumerate((_B, _I, _T, _R, _O, _M)))
+    for i in range(7)
 ]
 
 PANEL_NAMES = ["WORKER", "NETWORK", "BLOCKS", "STATUS"]
@@ -71,10 +72,11 @@ def _safe(win, y, x, text, attr, width=None):
 
 
 class Dashboard:
-    def __init__(self, state, network, config):
+    def __init__(self, state, network, config, proc=None):
         self.state = state
         self.net = network
         self.config = config
+        self.proc = proc
         self.panel = 0
         self.last_cycle = 0.0
         self.colors = {}
@@ -118,6 +120,10 @@ class Dashboard:
             if key in (ord("s"), ord(" ")):
                 self.panel = (self.panel + 1) % len(PANEL_NAMES)
                 self.last_cycle = time.time()
+            if key == ord("m"):
+                self._menu(stdscr)
+            if key == ord("n"):
+                self._toggle_quiet(stdscr)
 
             now = time.time()
             if now - self.last_cycle >= self.config.get("update_interval") * 4:
@@ -148,36 +154,37 @@ class Dashboard:
 
         ph = max(8, h - 14)
         if w >= 84:
-            self._draw_panel(stdscr, 8, ph, w, 0)
-            self._draw_panel_right(stdscr, 8, ph, w, 1)
+            self._draw_panel(stdscr, 9, ph, w, 0)
+            self._draw_panel_right(stdscr, 9, ph, w, 1)
         else:
-            self._draw_panel(stdscr, 8, ph, w, self.panel)
+            self._draw_panel(stdscr, 9, ph, w, self.panel)
 
         self._draw_bottom(stdscr, h, w)
 
     def _draw_header(self, win, h, w):
         state = self.state
-        logo_h = len(LOGO)
-        logo_w = max(len(r) for r in LOGO)
+        logo_w = max(len(r) for r in BITROM_LOGO)
+        logo_h = len(BITROM_LOGO)
 
         logo_y = 1
-        for i, row in enumerate(LOGO):
-            _safe(win, i + logo_y, 2, row, self.colors["logo"], width=logo_w)
+        for i, row in enumerate(BITROM_LOGO):
+            _safe(win, i + logo_y, 3, row, self.colors["logo"], width=logo_w)
 
-        x_right = max(logo_w + 6, 34)
+        x_right = max(logo_w + 10, 56)
         rate_str = human_rate(state.show_rate) if state.show_rate else human_rate(state.hashrate)
         if not state.running and not state.error:
             rate_str = "starting..."
-        _safe(win, 1, x_right, "BITROM MINER", self.colors["title"], width=16)
-        _safe(win, 2, x_right, "v1  solo  sha256d", self.colors["normal"])
-        _safe(win, 3, x_right, f"hash    {rate_str:<14}", self.colors["bold"])
-        _safe(win, 4, x_right,
+        _safe(win, 1, x_right, "MINER  v1", self.colors["title"], width=16)
+        _safe(win, 2, x_right,
+              f"hash    {rate_str:<14}", self.colors["bold"])
+        _safe(win, 3, x_right,
               f"threads {state.threads} x SHA-256d", self.colors["normal"])
-        _safe(win, 5, x_right, f"uptime  {_fmt_duration(state.up)}", self.colors["normal"])
-        _safe(win, 6, x_right, f"pool    {self.config.get('pool').split('//')[-1]}",
+        _safe(win, 4, x_right, f"uptime  {_fmt_duration(state.up)}", self.colors["normal"])
+        _safe(win, 5, x_right, f"pool    {self.config.get('pool').split('//')[-1]}",
               self.colors["normal"])
+        _safe(win, 6, x_right, f"mode    {self._mode_label()}", self.colors["normal"])
 
-        _safe(win, 7, 2, "\u2550" * (w - 4), self.colors["dim"])
+        _safe(win, 8, 2, "\u2550" * (w - 4), self.colors["dim"])
 
     def _draw_panel(self, win, y, ph, w, index):
         title = PANEL_NAMES[index]
@@ -269,10 +276,76 @@ class Dashboard:
             lines.append(f"err: {state.error[:44]}")
         return [self._clip(line, width) for line in lines]
 
+    def _mode_state(self):
+        n = self.state.nice
+        if n is None:
+            n = self.config.get("quiet_nice") if self.config.get("quiet_mode") else 0
+        return n
+
     def _mode_label(self):
-        if self.config.get("quiet_mode"):
-            return f"quiet (nice {self.config.get('quiet_nice')})"
+        n = self._mode_state()
+        if n > 0:
+            return f"quiet (nice {n})"
         return "normal"
+
+    def _toggle_quiet(self, stdscr):
+        cfg = self.config
+        cur = self._mode_state()
+        new = 0 if cur > 0 else int(cfg.get("quiet_nice") or 0)
+        cfg.set("quiet_mode", new > 0)
+        config_mod.save(cfg)
+        if self.proc:
+            ok = self.proc.set_nice(new)
+            if not ok and cur > 0 and new == 0:
+                self.state.nice_error = (
+                    "restoring priority needs root; launch with sudo to toggle off live"
+                )
+            elif not ok:
+                self.state.nice_error = (
+                    "could not set nice level: " + self.state.nice_error
+                )
+            else:
+                self.state.nice_error = ""
+        else:
+            self.state.nice = new
+            self.state.nice_error = ""
+        self.last_cycle = time.time()
+
+    def _menu(self, stdscr):
+        while True:
+            self._render_menu(stdscr)
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key in (ord("q"), 27, ord("m")):
+                break
+            if key == -1:
+                time.sleep(0.15)
+                continue
+            if key in (ord("1"), ord("n"), ord("N")):
+                self._toggle_quiet(stdscr)
+            if key == ord("s"):
+                self.panel = (self.panel + 1) % len(PANEL_NAMES)
+
+    def _render_menu(self, stdscr):
+        h, w = stdscr.getmaxyx()
+        mw = min(w - 6, 44)
+        mx = max(2, (w - mw) // 2)
+        top = max(1, (h - 10) // 2)
+        quiet = "ON" if self._mode_state() > 0 else "OFF"
+        lines = [
+            ("  BITROM MINER v1 - MENU           ", "title"),
+            ("  " + "\u2550" * (mw - 6) + "                 ", "dim"),
+            (f"  [1]  quiet mode            {quiet}", "bold"),
+            ("       nice level 10 (lower priority, cooler", "normal"),
+            ("       fans, keeps PC responsive)         ", "normal"),
+            ("  " + "\u2500" * (mw - 6) + "                 ", "dim"),
+        ]
+        if self.state.nice_error:
+            lines.append(("  ! " + self.state.nice_error[: mw - 8], "err"))
+        else:
+            lines.append(("  [q] close                [s] screen", "dim"))
+        for i, (text, style) in enumerate(lines):
+            _safe(stdscr, top + i, mx, text, self.colors[style], width=mw)
 
     def _clip(self, line, width):
         return line if len(line) <= width else line[: max(1, width - 4)] + ".."
@@ -283,7 +356,7 @@ class Dashboard:
         samples = self.state.samples
         if len(samples) >= 2:
             self._draw_spark(win, y, w, samples)
-        _safe(win, h - 1, 2, "q quit  s screen  -- bitrom miner v1",
+        _safe(win, h - 1, 2, "q quit  s screen  m menu  n quiet  -- bitrom miner v1",
               self.colors["dim"], width=w - 4)
         if self.state.error:
             _safe(win, h - 2, 2, self.state.error[: w - 4], self.colors["err"], width=w - 4)
@@ -309,7 +382,7 @@ class Dashboard:
               self.colors["dim"])
 
 
-def run(state, network, config):
-    ui = Dashboard(state, network, config)
+def run(state, network, config, proc=None):
+    ui = Dashboard(state, network, config, proc=proc)
     curses.wrapper(ui.draw)
     return True

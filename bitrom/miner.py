@@ -86,6 +86,8 @@ class MinerState:
         self.connected = False
         self.last_diff_share = None
         self.blocks_found = 0
+        self.nice = None
+        self.nice_error = ""
         self.samples = []
         self.start_time = time.time()
         self.up = 0
@@ -220,10 +222,26 @@ class MinerProcess:
             bufsize=1,
             **kwargs,
         )
+        if self.config.get("quiet_mode"):
+            self.set_nice(int(self.config.get("quiet_nice") or 0))
         self.state.start_time = time.time()
         self.reader = threading.Thread(target=self._read_loop, daemon=True)
         self.reader.start()
         return self.proc
+
+    def set_nice(self, level):
+        if not self.proc or self.proc.poll() is not None:
+            self.state.nice = level
+            self.state.nice_error = ""
+            return True
+        try:
+            os.setpriority(os.PRIO_PROCESS, self.proc.pid, level)
+            self.state.nice = level
+            self.state.nice_error = ""
+            return True
+        except OSError as exc:
+            self.state.nice_error = str(exc)
+            return False
 
     def _read_loop(self):
         for line in iter(self.proc.stdout.readline, ""):
