@@ -48,17 +48,16 @@ def human_rate(khash):
     return f"{hps:.2f} {HR_UNITS[i]}"
 
 
-_HR_RE = re.compile(r"([\d.]+)\s*(?:(k|m|g|t|p)(?:i{0,1})?)?hash/s")
-_ACC_RE = re.compile(r"accepted:\s*(\d+)/(\d+)\s*\(([\d.]+)%\)")
-_REJ_RE = re.compile(r"rejected:\s*(\d+)/(\d+)\s*\(([\d.]+)%\)")
+_HR_RE = re.compile(r"([\d.]+)\s*(?:([kmgtp])(?:hash|h)?)?h(?:ash)?/s", re.I)
+_ACC_RE = re.compile(r"accepted:\s*(\d+)/(\d+)", re.I)
+_REJ_RE = re.compile(r"reject reason", re.I)
 _THREAD_RE = re.compile(r"(\d+)\s+miner threads started")
-_DIFF_RE = re.compile(r"difficulty accepted:\s*\d+\s*\(([\d.]+)\s+diff\)")
+_DIFF_RE = re.compile(r"\(diff\s+([\d.]+)\)")
 _ERR_RE = re.compile(
     r"(authentication failed|auth\s*fail|invalid\s+(username|address|worker|password)|"
     r"stratum\s+(error|connection\s+refused|timeout|failed)|login\s+failed)",
     re.I,
 )
-_CRYPTO_RE = re.compile(r"(\d+) cpu\s+crypto|crypto\s*:", re.I)
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -105,9 +104,8 @@ def parse_chunk(chunk, state):
         state.accepted = int(acc.group(1))
         state.attempts = int(acc.group(2))
         state.connected = True
-    rej = _REJ_RE.search(chunk)
-    if rej:
-        state.rejected = int(rej.group(1))
+    if _REJ_RE.search(chunk):
+        state.rejected += 1
     th = _THREAD_RE.search(chunk)
     if th:
         state.threads = int(th.group(1))
