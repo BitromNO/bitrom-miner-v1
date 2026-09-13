@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .config import save as config_save
 from .config import validator_options
 from .miner import MinerProcess, MinerState, effective_threads, human_rate
+from . import __version__
 
 
 class WebController:
@@ -16,6 +17,8 @@ class WebController:
         self.proc = None
         self.lock = threading.Lock()
         self.last_error = ""
+        self.rate_hist = []
+        self._last_sample = 0.0
 
     @property
     def configured(self):
@@ -140,6 +143,12 @@ class WebController:
         return {"type": "four-stats", "refresh": "5s", "items": items}
 
     def status_data(self):
+        now = time.time()
+        if now - self._last_sample >= 2:
+            self._last_sample = now
+            self.rate_hist.append(round(self.state.hashrate, 3))
+            if len(self.rate_hist) > 150:
+                del self.rate_hist[:len(self.rate_hist) - 150]
         wallet = self.config.get("wallet_address")
         wmask = (wallet[:12] + "..." + wallet[-6:]) if len(wallet) > 20 else wallet
         rate = human_rate(self.state.hashrate) if self.state.hashrate else "-"
@@ -171,6 +180,8 @@ class WebController:
             "wallet": wmask,
             "worker": self.config.get("worker_name"),
             "uptime": round(time.time() - self.state.start_time),
+            "version": __version__,
+            "rate_hist": list(self.rate_hist),
         }
 
 
@@ -211,13 +222,18 @@ input[type=range]{flex:1;accent-color:var(--br)}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--br);border-radius:8px;padding:8px 16px;opacity:0;transition:opacity .25s}
 #toast.err{border-color:var(--err);color:var(--err)}
 #toast.on{opacity:1}
+#rategraph{width:100%}
+#rategraph svg{display:block;width:100%;height:200px}
+#rategraph polyline{stroke-linejoin:round;stroke-linecap:round}
+.poly{fill:rgba(40,201,143,.08)}
+#rate-max{font-weight:normal;text-transform:none;letter-spacing:0}
 .setup{padding:30px;text-align:center;color:var(--dim);border:1px dashed var(--line);border-radius:10px}
 .setup b{color:var(--fg)}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header><h1>BITROM <span>miner v1</span></h1><div id="conn">&mdash;</div></header>
+<header><h1>BITROM <span>miner v{{VER}}</span></h1><div id="conn">&mdash;</div></header>
 
 <div id="setup" class="setup" hidden>No mining wallet configured yet.<br>Fill in the <b>Settings</b> below and press <b>Save</b> to start mining.</div>
 
@@ -230,6 +246,11 @@ input[type=range]{flex:1;accent-color:var(--br)}
   <div class="card"><div class="k">Last share diff</div><div class="v" id="diff">-</div></div>
   <div class="card"><div class="k">Uptime</div><div class="v" id="up">-</div></div>
 </div>
+
+<section>
+<h2>Hashrate <span id="rate-max" class="dim"></span></h2>
+<div id="rategraph"></div>
+</section>
 
 <section>
 <h2>Cooling / power</h2>
@@ -273,6 +294,23 @@ async function get(url,body){
   return{r,j};
 }
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='on'+(err?' err':'');clearTimeout(t._h);t._h=setTimeout(()=>t.className='',2600)}
+function fmtRate(kh){
+  let hps=kh*1000,u=['H/s','kH/s','MH/s','GH/s','TH/s','PH/s'],i=0;
+  while(hps>=1000&&i<u.length-1){hps/=1000;i++;}
+  return hps.toFixed(2)+' '+u[i];
+}
+function drawRate(hist){
+  const el=$('rategraph'),mx=$('rate-max');
+  if(!hist||hist.length<2){el.innerHTML='';if(mx)mx.textContent='';return;}
+  const W=900,H=200,P=6;
+  let max=0;for(const v of hist)if(v>max)max=v;
+  if(!max){if(mx)mx.textContent='';return;}
+  mx.textContent='peak '+fmtRate(max);
+  const n=hist.length;
+  const pts=hist.map((v,i)=>(P+(W-2*P)*i/(n-1)).toFixed(1)+','+(H-P-(H-2*P)*(v/max)).toFixed(1)).join(' ');
+  const fill='0,'+(H-P)+' '+pts+' '+(W-P)+','+(H-P);
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polygon points="'+fill+'" class="poly"/><polyline points="'+pts+'" fill="none" stroke="var(--br)" stroke-width="2"/></svg>';
+}
 async function poll(){
   const{j}=await get('/api/status'); if(!j)return;
   current=j;
@@ -286,6 +324,7 @@ async function poll(){
   $('up').textContent=m+'m '+s+'s';
   $('conn').textContent=(j.pool||'')+'  '+j.wallet;
   $('setup').hidden=j.configured;
+  drawRate(j.rate_hist);
   if(j.error)toast(j.error,true);
 }
 function lvlLabel(l){
@@ -336,7 +375,7 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         ctl = self.server.controller
         if self.path in ("/", "/index.html"):
-            page = PAGE.encode()
+            page = PAGE.replace("{{VER}}", __version__).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(page)))
