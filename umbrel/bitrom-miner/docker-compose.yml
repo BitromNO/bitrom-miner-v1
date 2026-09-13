@@ -11,7 +11,6 @@ services:
     # pinned by digest, no "build:" key. Build + publish first (see README.md),
     # then replace the digest below.
     image: ghcr.io/bitromno/bitrom-miner:1.1.0@sha256:b2ee4395aefb419e4f30137f417e391ea15447d0d8f1539057a6cda436a60857
-    user: "1000:1000"
     restart: on-failure
     init: true
     stop_grace_period: 30s

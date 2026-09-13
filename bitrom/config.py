@@ -73,8 +73,10 @@ def save(cfg):
         os.makedirs(CONFIG_DIR, exist_ok=True)
         with open(cfg.path, "w") as fh:
             json.dump(cfg.data, fh, indent=2)
+        return True
     except OSError:
         print(f"[error] could not write config to {cfg.path}", file=sys.stderr)
+        return False
 
 
 def prompt_first_run(cfg):

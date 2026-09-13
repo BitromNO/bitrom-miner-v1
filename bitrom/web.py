@@ -121,9 +121,11 @@ class WebController:
                 self.config.set("network_refresh", network_refresh)
             if show_network is not None:
                 self.config.set("show_network", show_network)
-            config_save(self.config)
+            saved = config_save(self.config)
         if self.configured:
             self.restart_miner()
+        if not saved:
+            return False, "could not write config to disk - address will NOT persist"
         return True, ""
 
     def widget_data(self):
