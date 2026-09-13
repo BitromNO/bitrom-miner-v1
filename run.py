@@ -63,7 +63,7 @@ def main():
             pass
         elif args.headless:
             print("[error] no wallet configured yet.", file=sys.stderr)
-            print("  Run 'python3 bitrom.py --web --headless' and set it up "
+            print("  Run 'python3 run.py --web --headless' and set it up "
                   "in the web dashboard, or run once interactively.", file=sys.stderr)
             sys.exit(1)
         else:

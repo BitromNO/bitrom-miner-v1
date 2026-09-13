@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/cpuminer-multi/cpuminer /usr/local/bin/cpuminer
 WORKDIR /app
-COPY bitrom.py bitrom/ README.md /app/
+COPY run.py bitrom/ README.md /app/
 USER 1000:1000
 EXPOSE 8080
-CMD ["python3", "bitrom.py", "--headless", "--web", "--web-port", "8080"]
+CMD ["python3", "run.py", "--headless", "--web", "--web-port", "8080"]

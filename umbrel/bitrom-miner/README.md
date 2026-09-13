@@ -26,7 +26,7 @@ umbrelOS. Images must be `linux/amd64` + `linux/arm64`.
 
 The store requires a **prebuilt multi-arch image pinned by digest** and does
 not allow a `build:` key in `docker-compose.yml`. Do this from the **repo
-root** (build context includes `bitrom.py`, `bitrom/`, `README.md`):
+root** (build context includes `run.py`, `bitrom/`, `README.md`):
 
 ```sh
 # 1. Authenticate to the container registry (GitHub Container Registry)

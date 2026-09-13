@@ -71,7 +71,8 @@ class WebController:
         self.state.threads = threads if threads else self.state.threads
         return True
 
-    def set_settings(self, wallet, pool, worker):
+    def set_settings(self, wallet, pool, worker, threads=None,
+                     update_interval=None, network_refresh=None, show_network=None):
         wallet = (wallet or "").strip().replace(" ", "")
         pool = (pool or "").strip()
         worker = (worker or "").strip()
@@ -79,6 +80,29 @@ class WebController:
             return False, "wallet address does not look valid"
         if pool and "://" not in pool:
             return False, "pool URL must include scheme (stratum+tcp://...)"
+        for name, value, default_min in (
+            ("threads", threads, 1),
+            ("update_interval", update_interval, 1),
+            ("network_refresh", network_refresh, 1),
+        ):
+            if value is None:
+                continue
+            try:
+                value = int(value)
+                if value < default_min:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return False, f"{name} must be a number >= {default_min}"
+            if name == "threads":
+                threads = value
+            elif name == "update_interval":
+                update_interval = value
+            else:
+                network_refresh = value
+        if show_network is not None:
+            if isinstance(show_network, str):
+                show_network = show_network.strip().lower() in ("1", "true", "yes", "on")
+            show_network = bool(show_network)
         with self.lock:
             if wallet:
                 self.config.set("wallet_address", wallet)
@@ -86,6 +110,14 @@ class WebController:
                 self.config.set("worker_name", worker)
             if pool:
                 self.config.set("pool", pool)
+            if threads is not None:
+                self.config.set("threads", threads)
+            if update_interval is not None:
+                self.config.set("update_interval", update_interval)
+            if network_refresh is not None:
+                self.config.set("network_refresh", network_refresh)
+            if show_network is not None:
+                self.config.set("show_network", show_network)
             config_save(self.config)
         if self.configured:
             self.restart_miner()
@@ -129,8 +161,12 @@ class WebController:
             "blocks": self.state.blocks_found,
             "last_diff": self.state.last_diff_share,
             "threads": self.state.threads,
+            "threads_set": int(self.config.get("threads") or 1),
             "threads_effective": effective_threads(self.config),
             "cooling_level": int(self.config.get("cooling_level") or 0),
+            "update_interval": int(self.config.get("update_interval") or 5),
+            "network_refresh": int(self.config.get("network_refresh") or 60),
+            "show_network": bool(self.config.get("show_network")),
             "pool": self.config.get("pool"),
             "wallet": wmask,
             "worker": self.config.get("worker_name"),
@@ -163,6 +199,10 @@ section{background:var(--panel);border:1px solid var(--line);border-radius:10px;
 h2{font-size:13px;margin:0 0 10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
 label{display:block;margin:8px 0 4px;color:var(--dim);font-size:12px}
 input{width:100%;background:#0d1214;border:1px solid var(--line);color:var(--fg);border-radius:6px;padding:8px 10px;font:inherit}
+input[type=number]{width:100%}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0 14px}
+.chk{display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--fg);font-size:13px}
+.chk input[type=checkbox]{width:auto;accent-color:var(--br)}
 button{margin-top:12px;background:var(--br);color:#04160d;border:0;border-radius:6px;padding:9px 16px;font:inherit;font-weight:bold;cursor:pointer}
 button:disabled{opacity:.45;cursor:default}
 .range{display:flex;align-items:center;gap:14px}
@@ -208,6 +248,15 @@ input[type=range]{flex:1;accent-color:var(--br)}
 <input id="pool" placeholder="stratum+tcp://public-pool.io:3333" autocomplete="off">
 <label for="worker">Worker name</label>
 <input id="worker" placeholder="cpu01" autocomplete="off" spellcheck="false">
+<div class="two">
+<div><label for="threads">Threads (blank = auto)</label>
+<input id="threads" type="number" min="1" placeholder="auto" autocomplete="off"></div>
+<div><label for="ui">Update interval (s)</label>
+<input id="ui" type="number" min="1" placeholder="5" autocomplete="off"></div>
+<div><label for="ni">Network refresh (s)</label>
+<input id="ni" type="number" min="1" placeholder="60" autocomplete="off"></div>
+</div>
+<label class="chk"><input id="net" type="checkbox"> Show network activity</label>
 <button id="save">Save and restart miner</button>
 </section>
 
@@ -251,11 +300,12 @@ $('applyCool').onclick=async()=>{
   if(r.ok){toast('cooling applied');$('lvl').textContent=lvlLabel(l)}else toast((j&&j.error)||'failed',true);
 };
 $('save').onclick=async()=>{
-  const{r,j}=await get('/api/settings',{wallet:$('wallet').value.trim(),pool:$('pool').value.trim(),worker:$('worker').value.trim()});
+  const{r,j}=await get('/api/settings',{wallet:$('wallet').value.trim(),pool:$('pool').value.trim(),worker:$('worker').value.trim(),threads:$('threads').value||null,update_interval:$('ui').value||null,network_refresh:$('ni').value||null,show_network:$('net').checked});
   if(r.ok){toast('saved - miner restarted');poll()}else toast((j&&j.error)||'failed',true);
 };
 (async()=>{const{j}=await get('/api/status');if(!j)return;$('cool').value=j.cooling_level;$('lvl').textContent=lvlLabel(j.cooling_level);
-$('wallet').value=j.wallet===''?'':j.wallet;$('pool').value=j.pool||'';$('worker').value=j.worker||'';})();
+$('wallet').value=j.wallet===''?'':j.wallet;$('pool').value=j.pool||'';$('worker').value=j.worker||'';
+$('threads').value=j.threads_set||'';$('ui').value=j.update_interval||'';$('ni').value=j.network_refresh||'';$('net').checked=!!j.show_network;})();
 setInterval(poll,2000);poll();
 </script>
 </body>
@@ -317,7 +367,11 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/api/settings":
             body = self._body()
             ok, err = ctl.set_settings(
-                body.get("wallet"), body.get("pool"), body.get("worker")
+                body.get("wallet"), body.get("pool"), body.get("worker"),
+                threads=body.get("threads"),
+                update_interval=body.get("update_interval"),
+                network_refresh=body.get("network_refresh"),
+                show_network=body.get("show_network"),
             )
             if ok:
                 self._json({"ok": True})

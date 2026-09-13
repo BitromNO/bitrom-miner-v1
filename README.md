@@ -56,7 +56,7 @@ educational experiment.
 ```bash
 git clone https://github.com/<you>/bitrom-miner-v1.git
 cd bitrom-miner-v1
-python3 bitrom.py
+python3 run.py
 ```
 
 On first run you'll be asked for your Bitcoin address. The miner binary is
@@ -75,12 +75,12 @@ auto-built into `~/.cache/bitrom-miner/`, config lives in
 CLI options:
 
 ```
-python3 bitrom.py -w <address> -t <threads> --level N
-python3 bitrom.py --headless
-python3 bitrom.py --web [--web-port 8080]   # browser dashboard at http://localhost:8080
-python3 bitrom.py --web --headless          # headless + web (container/systemd)
-python3 bitrom.py --no-network
-python3 bitrom.py --rebuild
+python3 run.py -w <address> -t <threads> --level N
+python3 run.py --headless
+python3 run.py --web [--web-port 8080]   # browser dashboard at http://localhost:8080
+python3 run.py --web --headless          # headless + web (container/systemd)
+python3 run.py --no-network
+python3 run.py --rebuild
 ```
 
 ## Run after logout (systemd)
@@ -139,7 +139,7 @@ bitrom/
   network.py   block height + difficulty fetchers
   ui.py        curses dashboard (logo, panels, menu, sparkline)
   web.py       web dashboard + widget API
-bitrom.py      entry point / CLI
+run.py         entry point / CLI
 systemd/       bitrom-miner.service
 umbrel/        umbrelOS app package (bitrom-miner)
 ```

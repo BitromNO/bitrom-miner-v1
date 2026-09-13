@@ -9,7 +9,7 @@ User=bitrom
 Group=bitrom
 Environment=HOME=/home/bitrom
 WorkingDirectory=/home/bitrom/bitrom-miner-v1
-ExecStart=/usr/bin/python3 /home/bitrom/bitrom-miner-v1/bitrom.py --headless
+ExecStart=/usr/bin/python3 /home/bitrom/bitrom-miner-v1/run.py --headless
 Restart=always
 RestartSec=10
 # stop cleanly: SIGTERM -> headless loop exits 0
