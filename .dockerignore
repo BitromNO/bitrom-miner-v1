@@ -1,8 +1,7 @@
-.git
+.git/
+.gitignore
+__pycache__/
 *.pyc
-__pycache__
-systemd
-tmp
-umbrel
-.idea
-.vscode
+data/
+systemd/
+umbrel/
