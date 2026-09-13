@@ -8,7 +8,7 @@ CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", APP_NAME)
 
-DEFAULT_POOL = "stratum+tcp://solo.ckpool.org:3333"
+DEFAULT_POOL = "stratum+tcp://public-pool.io:3333"
 
 DEFAULTS = {
     "wallet_address": "",
