@@ -102,7 +102,7 @@ class WebController:
         self.state.threads = threads if threads else self.state.threads
         return True
 
-    def set_settings(self, wallet, pool, worker, threads=None,
+    def set_settings(self, wallet, pool, worker, password=None, threads=None,
                      update_interval=None, network_refresh=None, show_network=None):
         wallet = (wallet or "").strip().replace(" ", "")
         pool = (pool or "").strip()
@@ -141,6 +141,8 @@ class WebController:
                 self.config.set("worker_name", worker)
             if pool:
                 self.config.set("pool", pool)
+            if password is not None:
+                self.config.set("pool_password", (password or "").strip())
             if threads is not None:
                 self.config.set("threads", threads)
             if update_interval is not None:
@@ -219,6 +221,7 @@ class WebController:
             "network_refresh": int(self.config.get("network_refresh") or 60),
             "show_network": bool(self.config.get("show_network")),
             "pool": self.config.get("pool"),
+            "pool_password": self.config.get("pool_password") or "",
             "wallet": wmask,
             "worker": self.config.get("worker_name"),
             "uptime": round(time.time() - self.state.start_time),
@@ -326,6 +329,8 @@ input[type=range]{flex:1;accent-color:var(--br)}
 <input id="wallet" placeholder="bc1q..." autocomplete="off" spellcheck="false">
 <label for="pool">Solo pool URL</label>
 <input id="pool" placeholder="stratum+tcp://public-pool.io:3333" autocomplete="off">
+<label for="pass">Pool password (optional, e.g. <code>x</code>)</label>
+<input id="pass" placeholder="x" autocomplete="new-password" spellcheck="false">
 <label for="worker">Worker name</label>
 <input id="worker" placeholder="cpu01" autocomplete="off" spellcheck="false">
 <div class="two">
@@ -405,11 +410,11 @@ $('applyCool').onclick=async()=>{
   if(r.ok){toast('cooling applied');$('lvl').textContent=lvlLabel(l)}else toast((j&&j.error)||'failed',true);
 };
 $('save').onclick=async()=>{
-  const{r,j}=await get('/api/settings',{wallet:$('wallet').value.trim(),pool:$('pool').value.trim(),worker:$('worker').value.trim(),threads:$('threads').value||null,update_interval:$('ui').value||null,network_refresh:$('ni').value||null,show_network:$('net').checked});
+  const{r,j}=await get('/api/settings',{wallet:$('wallet').value.trim(),pool:$('pool').value.trim(),password:$('pass').value.trim(),worker:$('worker').value.trim(),threads:$('threads').value||null,update_interval:$('ui').value||null,network_refresh:$('ni').value||null,show_network:$('net').checked});
   if(r.ok){toast('saved - miner restarted');poll()}else toast((j&&j.error)||'failed',true);
 };
 (async()=>{const{j}=await get('/api/status');if(!j)return;$('cool').value=j.cooling_level;$('lvl').textContent=lvlLabel(j.cooling_level);
-$('wallet').value=j.wallet===''?'':j.wallet;$('pool').value=j.pool||'';$('worker').value=j.worker||'';
+$('wallet').value=j.wallet===''?'':j.wallet;$('pool').value=j.pool||'';$('pass').value=j.pool_password||'';$('worker').value=j.worker||'';
 $('threads').value=j.threads_set||'';$('ui').value=j.update_interval||'';$('ni').value=j.network_refresh||'';$('net').checked=!!j.show_network;})();
 setInterval(poll,2000);poll();
 </script>
@@ -473,6 +478,7 @@ class _Handler(BaseHTTPRequestHandler):
             body = self._body()
             ok, err = ctl.set_settings(
                 body.get("wallet"), body.get("pool"), body.get("worker"),
+                password=body.get("password"),
                 threads=body.get("threads"),
                 update_interval=body.get("update_interval"),
                 network_refresh=body.get("network_refresh"),

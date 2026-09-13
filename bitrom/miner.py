@@ -203,9 +203,12 @@ class MinerProcess:
             resolve_binary(),
             "-a", "sha256d",
             "-o", self.config.get("pool"),
-            "-u", self.config.get("worker_username") or self.config.get("wallet_address"),
-            "-t", str(threads),
+            "-u", self.config.worker_username or self.config.get("wallet_address"),
         ]
+        password = self.config.get("pool_password") or ""
+        if password:
+            args += ["-p", password]
+        args += ["-t", str(threads)]
         print("[miner] starting:", " ".join(args))
         proc = subprocess.Popen(
             args,

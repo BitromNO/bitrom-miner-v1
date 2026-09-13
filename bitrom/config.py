@@ -13,8 +13,9 @@ DEFAULT_POOL = "stratum+tcp://public-pool.io:3333"
 
 DEFAULTS = {
     "wallet_address": "",
-    "worker_name": socket.gethostname()[:16] or "01",
+    "worker_name": "",
     "pool": DEFAULT_POOL,
+    "pool_password": "",
     "threads": os.cpu_count() or 1,
     "update_interval": 5,
     "network_refresh": 60,
