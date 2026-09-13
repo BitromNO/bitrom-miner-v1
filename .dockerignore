@@ -1,7 +1,7 @@
 .git/
 .gitignore
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
 data/
 systemd/
 umbrel/
