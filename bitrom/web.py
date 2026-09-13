@@ -10,9 +10,37 @@ from .miner import MinerProcess, MinerState, effective_threads, human_rate
 from . import __version__
 
 
+def human_hash(n):
+    if n is None:
+        return "-"
+    for unit in ("H", "kH", "MH", "GH", "TH", "PH", "EH"):
+        if n < 1000:
+            return f"{n:.2f} {unit}"
+        n /= 1000
+    return f"{n:.2f} EH"
+
+
+def human_duration(seconds):
+    if seconds is None or seconds < 0:
+        return "-"
+    if seconds >= 3.15576e16:
+        return "> 1 By"
+    parts = []
+    s = int(seconds)
+    for sec, label in ((31557600, "y"), (2629746, "mo"), (86400, "d"), (3600, "h"), (60, "min"), (1, "s")):
+        v = s // sec if sec else 0
+        if v:
+            parts.append(f"{v}{label}")
+            s -= v * sec
+        if len(parts) == 2:
+            break
+    return " ".join(parts) if parts else "<1s"
+
+
 class WebController:
-    def __init__(self, config):
+    def __init__(self, config, net=None):
         self.config = config
+        self.net = net
         self.state = MinerState()
         self.proc = None
         self.lock = threading.Lock()
@@ -160,12 +188,24 @@ class WebController:
             error = (self.proc.proc and self.proc.proc.poll()) and (self.state.error or "miner process stopped") or ""
         if (self.proc is not None and self.proc.proc and self.proc.proc.poll() is None):
             error = self.state.error
+        net_ok = (self.net is not None and self.net.ok
+                  and self.net.difficulty is not None and self.net.difficulty > 0)
+        difficulty = self.net.difficulty if net_ok else None
+        grate = human_hash(self.net.network_rate) if (net_ok and self.net.network_rate) else None
+        hps = self.state.hashrate * 1000
+        est = None
+        if net_ok and hps > 0:
+            est = human_duration(difficulty * (2 ** 32) / hps)
         return {
             "configured": self.configured,
             "mining": alive,
             "error": error,
             "hashrate": rate,
             "hashrate_kh": round(self.state.hashrate, 2),
+            "difficulty": human_hash(difficulty) if difficulty else None,
+            "height": self.net.height if (self.net is not None and self.net.ok) else None,
+            "grate": grate,
+            "est": est,
             "accepted": self.state.accepted,
             "submitted": self.state.attempts,
             "rejected": self.state.rejected,
@@ -260,6 +300,10 @@ input[type=range]{flex:1;accent-color:var(--br)}
   <div class="card"><div class="k">Blocks</div><div class="v" id="blocks">-</div></div>
   <div class="card"><div class="k">Last share diff</div><div class="v" id="diff">-</div></div>
   <div class="card"><div class="k">Uptime</div><div class="v" id="up">-</div></div>
+<div class="card"><div class="k">Difficulty</div><div class="v" id="netdiff">-</div></div>
+<div class="card"><div class="k">Block height</div><div class="v" id="height">-</div></div>
+<div class="card"><div class="k">Global rate</div><div class="v" id="grate">-</div></div>
+<div class="card"><div class="k">Est. block in</div><div class="v" id="est">-</div></div>
 </div>
 
 <section>
@@ -340,6 +384,10 @@ async function poll(){
   $('diff').textContent=j.last_diff?('diff '+j.last_diff):'-';
   const m=Math.floor(j.uptime/60),s=j.uptime%60;
   $('up').textContent=m+'m '+s+'s';
+  $('netdiff').textContent=j.difficulty??'-';
+  $('height').textContent=j.height==null?'-':j.height.toLocaleString();
+  $('grate').textContent=j.grate??'-';
+  $('est').textContent=j.est??'-';
   $('conn').textContent=(j.pool||'')+'  '+j.wallet;
   $('setup').hidden=j.configured;
   drawRate(j.rate_hist);

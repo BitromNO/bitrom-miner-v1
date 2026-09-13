@@ -69,11 +69,24 @@ def load(path=CONFIG_PATH, data=None):
 
 
 def save(cfg):
+    import tempfile
     try:
         os.makedirs(CONFIG_DIR, exist_ok=True)
-        with open(cfg.path, "w") as fh:
-            json.dump(cfg.data, fh, indent=2)
-        return True
+        fd, tmp = tempfile.mkstemp(dir=CONFIG_DIR, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                json.dump(cfg.data, fh, indent=2)
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, cfg.path)
+            os.chmod(cfg.path, 0o644)
+            return True
+        except OSError:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except OSError:
         print(f"[error] could not write config to {cfg.path}", file=sys.stderr)
         return False

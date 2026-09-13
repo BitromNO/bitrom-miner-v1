@@ -78,7 +78,7 @@ def main():
 
     state = miner.MinerState()
     proc = miner.MinerProcess(cfg, state)
-    if args.no_network or args.headless:
+    if args.no_network:
         net = network.Network(interval=0)
         net.ok = False
         net.difficulty = None
@@ -88,7 +88,7 @@ def main():
 
     if args.web:
         from bitrom import web
-        ctl = web.WebController(cfg)
+        ctl = web.WebController(cfg, net=net)
         web.start_server(ctl, port=args.web_port)
         if args.headless:
             web.keep_alive(ctl)
