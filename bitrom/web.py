@@ -396,6 +396,7 @@ def keep_alive(controller, interval=10):
     import signal as sig
 
     stopped = {"flag": False}
+    last_restart = 0.0
 
     def _stop(_s, _f):
         stopped["flag"] = True
@@ -412,12 +413,16 @@ def keep_alive(controller, interval=10):
     controller.start_miner()
     print("[miner] web dashboard serving; Ctrl-C or systemctl stop to finish")
     while not stopped["flag"]:
-        alive = controller.mining()
         if not controller.configured:
-            print(f"[web] waiting for wallet configuration at http://0.0.0.0:8080", flush=True)
-        elif not alive:
-            print(f"[error] miner process died: {controller.state.error or 'unknown'}", flush=True)
-            break
+            if not controller.mining():
+                print(f"[web] waiting for wallet configuration at http://0.0.0.0:8080", flush=True)
+        elif not controller.mining():
+            now = time.time()
+            msg = controller.state.error or "unknown"
+            if now - last_restart >= 5:
+                print(f"[error] miner process died: {msg} - restarting", flush=True)
+                controller.restart_miner()
+                last_restart = now
         else:
             s = controller.status_data()
             print(f"[miner] {s['hashrate']:<12} accepted {s['accepted']}"

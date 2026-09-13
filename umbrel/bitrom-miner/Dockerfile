@@ -26,6 +26,5 @@ WORKDIR /app
 COPY run.py /app/run.py
 COPY bitrom /app/bitrom/
 COPY README.md /app/README.md
-USER 1000:1000
 EXPOSE 8080
 CMD ["python3", "run.py", "--headless", "--web", "--web-port", "8080"]
