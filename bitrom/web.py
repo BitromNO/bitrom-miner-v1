@@ -227,13 +227,26 @@ input[type=range]{flex:1;accent-color:var(--br)}
 #rategraph polyline{stroke-linejoin:round;stroke-linecap:round}
 .poly{fill:rgba(40,201,143,.08)}
 #rate-max{font-weight:normal;text-transform:none;letter-spacing:0}
+#tip{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--br);border-radius:8px;padding:7px 12px;font-size:12px;text-decoration:none;cursor:pointer;white-space:nowrap}
+#tip:hover{border-color:var(--br)}
+#conn{margin:0 14px}
+#tipbox{padding:12px 14px;margin:0 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.trow{display:flex;gap:10px;align-items:center}
+#tipaddr{font-size:12px;color:var(--dim);word-break:break-all;flex:1}
+#tipbox button{padding:5px 12px;margin:0;font-size:12px}
+.topen{display:inline-block;margin-top:8px;font-size:12px;color:var(--br)}
 .setup{padding:30px;text-align:center;color:var(--dim);border:1px dashed var(--line);border-radius:10px}
 .setup b{color:var(--fg)}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header><h1>BITROM <span>miner v{{VER}}</span></h1><div id="conn">&mdash;</div></header>
+<header><h1>BITROM <span>miner v{{VER}}</span></h1><div id="conn">&mdash;</div><a id="tip" href="#">Buy me a coffee</a></header>
+
+<div id="tipbox" hidden>
+  <div class="trow"><span id="tipaddr"></span><button id="tipcopy">Copy</button></div>
+  <a id="topen" class="topen" href="#" target="_blank" rel="noopener">Open in wallet</a>
+</div>
 
 <div id="setup" class="setup" hidden>No mining wallet configured yet.<br>Fill in the <b>Settings</b> below and press <b>Save</b> to start mining.</div>
 
@@ -311,6 +324,9 @@ function drawRate(hist){
   const fill='0,'+(H-P)+' '+pts+' '+(W-P)+','+(H-P);
   el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><polygon points="'+fill+'" class="poly"/><polyline points="'+pts+'" fill="none" stroke="var(--br)" stroke-width="2"/></svg>';
 }
+const TIP_ADDR='bc1qkcs788qndhyxyudt5aurmrdvynj3wle6kr25jm';
+$('tip').onclick=(e)=>{e.preventDefault();const b=$('tipbox');b.hidden=!b.hidden;if(!b.hidden){$('tipaddr').textContent=TIP_ADDR;$('topen').href='bitcoin:'+TIP_ADDR;}};
+$('tipcopy').onclick=async()=>{try{await navigator.clipboard.writeText(TIP_ADDR);toast('address copied')}catch(e){toast('could not copy',true)}};
 async function poll(){
   const{j}=await get('/api/status'); if(!j)return;
   current=j;
