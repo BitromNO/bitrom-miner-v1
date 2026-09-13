@@ -111,13 +111,16 @@ def parse_chunk(chunk, state):
         state.error = chunk.strip()
 
 
-def find_existing_binary():
-    if os.path.exists(BINARY) and os.access(BINARY, os.X_OK):
-        return BINARY
+def resolve_binary():
+    """Return a usable miner binary, preferring $BITROM_BINARY (container)."""
+    candidates = [os.environ.get("BITROM_BINARY"), BINARY]
     for name in ("cpuminer", "minerd"):
         found = shutil.which(name)
         if found:
-            return found
+            candidates.append(found)
+    for c in candidates:
+        if c and os.path.exists(c) and os.access(c, os.X_OK):
+            return c
     return BINARY
 
 
@@ -136,8 +139,8 @@ def run(cmd, cwd=None):
 
 
 def ensure_backend(force=False):
-    binary = find_existing_binary()
-    if not force and os.path.exists(binary) and os.access(binary, os.X_OK):
+    binary = resolve_binary()
+    if not force and binary is not None and os.access(binary, os.X_OK):
         return binary
 
     print()
@@ -193,8 +196,11 @@ class MinerProcess:
     def start(self, threads=None):
         if threads is None:
             threads = effective_threads(self.config)
+        if not self.config.get("wallet_address"):
+            print("[error] no wallet configured; miner not started", flush=True)
+            return None
         args = [
-            BINARY,
+            resolve_binary(),
             "-a", "sha256d",
             "-o", self.config.get("pool"),
             "-u", self.config.get("worker_username") or self.config.get("wallet_address"),

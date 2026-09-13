@@ -4,9 +4,10 @@ import socket
 import sys
 
 APP_NAME = "bitrom-miner"
-CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".config", APP_NAME)
+_home = os.path.expanduser("~")
+CONFIG_DIR = os.environ.get("BITROM_CONFIG_DIR") or os.path.join(_home, ".config", APP_NAME)
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", APP_NAME)
+CACHE_DIR = os.environ.get("BITROM_CACHE_DIR") or os.path.join(_home, ".cache", APP_NAME)
 
 DEFAULT_POOL = "stratum+tcp://public-pool.io:3333"
 

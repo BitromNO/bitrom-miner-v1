@@ -1,8 +1,8 @@
 # Bitrom Miner v1
 
 A Linux solo **Bitcoin CPU miner** with a retro-NerdMiner-v2-style TUI dashboard,
-an on-device cooling control, and a systemd service so it keeps mining after you
-log out.
+an on-device cooling control, a systemd service so it keeps mining after you
+log out, and a browser dashboard (native + umbrelOS app package) with widgets.
 
 ```
 ██████  ██████  ██████  ██████  ██████  ██  ██        MINER  v1
@@ -34,6 +34,9 @@ educational experiment.
   threads (`level N → max(1, round(threads × (11−N)/10))`), applied live by
   restarting the miner. Perfect for a strictly quiet, cool box.
 - **Systemd service** — run headless, survive logout and restarts themselves.
+- **Web dashboard (`--web`)** — a browser UI with the same live stats, cooling
+  control, and wallet/pool setup. Also powers the **umbrelOS app** with a home
+  screen widget (`umbrel/bitrom-miner/`).
 - **Works with low-difficulty solo pools** like `public-pool.io`, which accept
   CPU shares within minutes (unlike ckpool's min-diff 10000 that can take weeks
   to register a CPU).
@@ -74,6 +77,8 @@ CLI options:
 ```
 python3 bitrom.py -w <address> -t <threads> --level N
 python3 bitrom.py --headless
+python3 bitrom.py --web [--web-port 8080]   # browser dashboard at http://localhost:8080
+python3 bitrom.py --web --headless          # headless + web (container/systemd)
 python3 bitrom.py --no-network
 python3 bitrom.py --rebuild
 ```
@@ -133,8 +138,10 @@ bitrom/
   miner.py     MinerProcess, cpuminer log parser, headless runner
   network.py   block height + difficulty fetchers
   ui.py        curses dashboard (logo, panels, menu, sparkline)
+  web.py       web dashboard + widget API
 bitrom.py      entry point / CLI
 systemd/       bitrom-miner.service
+umbrel/        umbrelOS app package (bitrom-miner)
 ```
 
 ## Disclaimer

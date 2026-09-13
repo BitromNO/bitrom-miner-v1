@@ -35,6 +35,10 @@ def main():
                         help="cooling level 1-10 (default 0 = full speed)")
     parser.add_argument("--headless", action="store_true",
                         help="run without dashboard (logs to stdout, for systemd)")
+    parser.add_argument("--web", action="store_true",
+                        help="serve the JSON/widget web dashboard (with or without --headless)")
+    parser.add_argument("--web-port", type=int, default=8080,
+                        help="web dashboard port (default 8080)")
     parser.add_argument("--rebuild", action="store_true", help="force rebuild cpuminer")
     parser.add_argument("--no-network", action="store_true", help="skip network stats fetching")
     parser.add_argument("--version", action="store_true", help="show version and exit")
@@ -55,14 +59,18 @@ def main():
         cfg.set("cooling_level", min(10, max(0, args.level)))
 
     if not cfg.get("wallet_address"):
-        if args.headless:
+        if args.web:
+            pass
+        elif args.headless:
             print("[error] no wallet configured yet.", file=sys.stderr)
-            print("  Run 'python3 bitrom.py' once interactively to set it up, "
-                  "then start the service.", file=sys.stderr)
+            print("  Run 'python3 bitrom.py --web --headless' and set it up "
+                  "in the web dashboard, or run once interactively.", file=sys.stderr)
             sys.exit(1)
-        config_mod.prompt_first_run(cfg)
+        else:
+            config_mod.prompt_first_run(cfg)
 
-    os.system("clear")
+    if sys.stdout.isatty():
+        os.system("clear")
     print(BANNER)
     print()
 
@@ -77,6 +85,21 @@ def main():
     else:
         net = network.Network(interval=cfg.get("network_refresh"))
         net.start()
+
+    if args.web:
+        from bitrom import web
+        ctl = web.WebController(cfg)
+        web.start_server(ctl, port=args.web_port)
+        if args.headless:
+            web.keep_alive(ctl)
+            print("\n[stopping] shutting down web dashboard...")
+            return
+        ctl.start_miner()
+        run(state, net, cfg, ctl.proc)
+        print("\n[stopping] shutting down miner...")
+        ctl.stop_miner()
+        net.stop()
+        return
 
     try:
         proc.start()
