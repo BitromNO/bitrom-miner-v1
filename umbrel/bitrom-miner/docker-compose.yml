@@ -7,8 +7,9 @@ services:
       APP_PORT: 8080
 
   server:
-    # IMPORTANT (store gate): prebuilt multi-arch image, pinned by digest, no "build:" key.
-    # Build + publish first (see README.md), then replace the digest below:
+    # Store gates: prebuilt multi-arch image (linux/amd64 + linux/arm64),
+    # pinned by digest, no "build:" key. Build + publish first (see README.md),
+    # then replace the digest below.
     image: ghcr.io/bitromno/bitrom-miner:1.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
     user: "1000:1000"
     restart: on-failure

@@ -1,4 +1,4 @@
-manifestVersion: 1.1
+manifestVersion: 1
 id: bitrom-miner
 category: bitcoin
 name: Bitrom Miner
@@ -6,34 +6,34 @@ version: "1.0.0"
 tagline: Solo CPU Bitcoin miner with a live dashboard
 description: >-
   Mine Bitcoin solo with your device's CPU and watch everything on a live
-  dashboard, right from your browser. No terminal, no SSH, no external mining
-  pools to trust — connect directly to a solo pool with your own wallet.
+  dashboard, right from your browser. No terminal, no SSH, and no external
+  mining pools to trust — connect directly to a solo pool with your own
+  wallet.
 
 
-  On first launch, open the app and enter your Bitcoin address and worker
-  name in Settings. The miner starts immediately and the dashboard shows
+  On first launch, open the app and enter your Bitcoin address, worker name
+  and pool in Settings. The miner starts immediately and the dashboard shows
   your hashrate, accepted and submitted shares, rejected shares, and any
   blocks found, updated in real time.
 
 
-  Use the Cooling / power slider (1-10) to trade hash speed for heat and
-  fan noise — level 1 uses all cores, level 10 uses the fewest threads.
-  Settings changes restart the miner automatically.
+  Use the Cooling / power slider (1-10) to trade hash speed for heat and fan
+  noise — level 1 uses all cores, level 10 uses the fewest threads. Settings
+  changes restart the miner automatically.
 
 
   Mining solo means you only earn when you find a block. Hashrate shown is
   real, but expected earnings are unpredictable.
-releaseNotes: >-
-  Initial release. CPU solo mining with a browser dashboard and live home
-  screen widget. Wallet, pool, worker, and cooling-level control from the
-  web UI. Pure Python + system cpuminer; runs non-root in the app container.
-dependencies: []
+releaseNotes: ""
 developer: Bitrom
 website: https://github.com/BitromNO/bitrom-miner-v1
+dependencies: []
 repo: https://github.com/BitromNO/bitrom-miner-v1
 support: https://github.com/BitromNO/bitrom-miner-v1/issues
-port: 3456
+port: 7563
+gallery: []
 path: ""
+defaultUsername: ""
 defaultPassword: ""
 widgets:
   - id: "stats"
@@ -55,4 +55,4 @@ widgets:
         - title: "Blocks"
           text: "0"
 submitter: Bitrom
-submission: https://github.com/getumbrel/umbrel-apps # FIXME: replace with the PR URL once submitted
+submission: https://github.com/getumbrel/umbrel-apps/pull/0
