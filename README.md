@@ -34,9 +34,12 @@ educational experiment.
   threads (`level N → max(1, round(threads × (11−N)/10))`), applied live by
   restarting the miner. Perfect for a strictly quiet, cool box.
 - **Systemd service** — run headless, survive logout and restarts themselves.
-- **Web dashboard (`--web`)** — a browser UI with the same live stats, cooling
-  control, and wallet/pool setup. Also powers the **umbrelOS app** with a home
-  screen widget (`umbrel/bitrom-miner/`).
+- **Web dashboard (`--web`)** — a browser UI with live stats, a **hashrate
+  graph** (2 s sampling, ~5 min rolling window), **network stats**
+  (difficulty, block height, global hashrate, estimated time to a block),
+  cooling control, a **Buy me a coffee** donate button, and wallet/pool setup
+  including an optional **pool password**. Also powers the **umbrelOS app**
+  with a home screen widget (`umbrel/bitrom-miner/`).
 - **Works with low-difficulty solo pools** like `public-pool.io`, which accept
   CPU shares within minutes (unlike ckpool's min-diff 10000 that can take weeks
   to register a CPU).
@@ -54,7 +57,7 @@ educational experiment.
 ## Install
 
 ```bash
-git clone https://github.com/<you>/bitrom-miner-v1.git
+git clone https://github.com/BitromNO/bitrom-miner-v1.git
 cd bitrom-miner-v1
 python3 run.py
 ```
@@ -107,6 +110,12 @@ This project works with any sha256d stratum pool:
 - **public-pool.io** (`stratum+tcp://public-pool.io:3333`) — 0% fee, solo,
   low difficulty; an 11 MH/s CPU sees accepted shares within minutes. Stats:
   `https://web.public-pool.io/#/<your-address>`
+- **Your own node** — point it at a self-hosted solo stratum (e.g. a
+  self-hosted public-pool on Umbrel):
+  - Pool: `stratum+tcp://<node-host>:<port>` (use the IP, not `.local`, from
+    other devices)
+  - Password: `x` (public-pool/ckpool ignore it, but some clients send it;
+    the dashboard lets you set it if your pool wants it)
 - **solo.ckpool.org** (`stratum+tcp://solo.ckpool.org:3333`) — 2% fee, solo,
   but enforces difficulty ≥ 10000. A CPU will submit a share only on average
   once every ~6 weeks, so use public-pool for feedback.
@@ -118,17 +127,32 @@ This project works with any sha256d stratum pool:
 ```json
 {
   "wallet_address": "bc1q...",
-  "worker_name": "pop-os",
+  "worker_name": "",
   "pool": "stratum+tcp://public-pool.io:3333",
+  "pool_password": "x",
   "threads": 8,
   "update_interval": 5,
   "network_refresh": 60,
+  "show_network": true,
   "cooling_level": 0
 }
 ```
 
 `cooling_level`: `0` = all threads (full speed), `1-10` = progressively fewer
-threads (cooler, quieter).
+threads (cooler, quieter). `worker_name`: leave empty to send a bare address
+(some pools want `<address>.<worker>` — set a name to append a suffix).
+
+## Umbrel app
+
+Official App Store PR: https://github.com/getumbrel/umbrel-apps/pull/6089
+Community store: https://github.com/BitromNO/bitrom-store (`bitrom-miner`)
+
+- Container port `8080`, app host port `8001` (chosen to avoid conflicts,
+  e.g. the Lightning app's `lnd` on 8080)
+- Config persists to `${APP_DATA_DIR}/data` (written atomically, chmod 644) —
+  your BTC address survives app updates and reboots
+- Dashboard exposes `/api/status` (incl. `version` and `rate_hist`), `/api/widget`,
+  `/api/settings`, `/api/cooling`
 
 ## How it's built
 
@@ -143,6 +167,16 @@ run.py         entry point / CLI
 systemd/       bitrom-miner.service
 umbrel/        umbrelOS app package (bitrom-miner)
 ```
+
+Docker builds multi-arch (`linux/amd64` + `linux/arm64`, so it runs on
+Raspberry Pi 4/5 / Umbrel Home too):
+
+```
+docker buildx build --platform linux/amd64,linux/arm64 --push \
+  -t ghcr.io/bitromno/bitrom-miner:<version> -f umbrel/bitrom-miner/Dockerfile .
+```
+
+Releases: https://github.com/BitromNO/bitrom-miner-v1/releases
 
 ## Disclaimer
 
