@@ -110,6 +110,7 @@ This project works with any sha256d stratum pool:
 - **public-pool.io** (`stratum+tcp://public-pool.io:3333`) — 0% fee, solo,
   low difficulty; an 11 MH/s CPU sees accepted shares within minutes. Stats:
   `https://web.public-pool.io/#/<your-address>`
+- **BTC PoW Lab** (`stratum+tcp://stratum.btcpowlab-pool.com:3333`) — Hybrid Solo pool with difficulty able to adjust down to 1. The finder receives 85%, eligible community miners share 10%, and the operator receives 5%. Status: `https://btcpowlab-pool.com/status`
 - **Your own node** — point it at a self-hosted solo stratum (e.g. a
   self-hosted public-pool on Umbrel):
   - Pool: `stratum+tcp://<node-host>:<port>` (use the IP, not `.local`, from
